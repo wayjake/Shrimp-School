@@ -1,15 +1,75 @@
 @import "tailwindcss";
 
+/* After extrafazant.nl: off-white and near-black grounds, thick saturated frames,
+   a heavy condensed grotesk set against a light condensed serif in the same
+   headline, a brush-script wordmark, white box nav. */
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif,
-    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-sans: "Archivo", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Instrument Serif", ui-serif, Georgia, serif;
+  --font-script: "Mr Dafoe", "Brush Script MT", cursive;
+
+  --animate-spin-slow: spin 18s linear infinite;
 }
 
 html,
 body {
-  @apply bg-white dark:bg-gray-950;
+  @apply bg-paper text-ink font-sans antialiased;
+}
 
-  @media (prefers-color-scheme: dark) {
-    color-scheme: dark;
+/* Static so every color exists as a CSS variable, even ones only the SVG art
+   in components/move-art.tsx reaches through var(--color-*) */
+@theme static {
+  --color-paper: #f3f3f1;
+  --color-ink: #121212;
+  --color-ink-soft: #2a2a2a;
+  --color-mute: #6d6d6a;
+  --color-blue: #1636f2;
+  --color-pink: #ef86cd;
+  --color-orange: #ec6a2c;
+  --color-red: #e1533d;
+  --color-lilac: #94a5f3;
+  --color-olive: #7a7350;
+  --color-gold: #e9b44c;
+  --color-mist: #e7eaf6;
+}
+
+/* Big display type: Archivo pulled to its narrowest width, heavy, tight */
+@utility font-display {
+  font-family: var(--font-sans);
+  font-stretch: 62%;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  /* The narrow width shrinks the space too; without this "STEP BY" reads "STEPBY" */
+  word-spacing: 0.08em;
+  line-height: 0.86;
+  text-transform: uppercase;
+}
+
+/* Nav, buttons and labels: condensed but readable */
+@utility font-label {
+  font-family: var(--font-sans);
+  font-stretch: 75%;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+
+@layer components {
+  .field {
+    @apply block w-full border-2 border-ink bg-white px-3 py-2.5 text-base text-ink
+      placeholder:text-mute focus:outline-none focus-visible:ring-4 focus-visible:ring-blue/40;
+  }
+  .field-label {
+    @apply font-label mb-1.5 block text-sm;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

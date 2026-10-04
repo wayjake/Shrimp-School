@@ -5,3 +5,7 @@
 # React Router
 /.react-router/
 /build/
+
+# Local SQLite (and its -wal/-shm sidecars) and uploaded move media
+/data/
+/uploads/
