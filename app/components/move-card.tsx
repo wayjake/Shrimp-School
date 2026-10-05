@@ -4,7 +4,8 @@ import { MoveArt } from "./move-art";
 
 export type CoverMedia = { file: string; kind: "image" | "video" } | null;
 
-export const mediaUrl = (file: string) => `/media/${file}`;
+// A Blob URL loads straight from the CDN; a bare name is a local file under /media
+export const mediaUrl = (file: string) => (/^https?:\/\//.test(file) ? file : `/media/${file}`);
 
 // First photo, else the drawn cover art, else the first frame of a clip, else
 // the SVG shapes while there's no art yet. Art beats a clip because a paused

@@ -11,12 +11,15 @@
     "db:seed": "node scripts/seed.ts",
     "db:studio": "drizzle-kit studio",
     "art": "node scripts/art.ts",
-    "import": "node scripts/import-moves.ts"
+    "import": "node scripts/import-moves.ts",
+    "blob:upload": "node scripts/upload-to-blob.ts",
+    "icon": "node scripts/icon.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",
     "@react-router/node": "^8.4.0",
     "@react-router/serve": "^8.4.0",
+    "@vercel/blob": "^2.8.0",
     "drizzle-orm": "^0.45.3",
     "isbot": "^5.1.36",
     "react": "^19.2.8",

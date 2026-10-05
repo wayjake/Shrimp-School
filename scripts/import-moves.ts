@@ -9,17 +9,19 @@
 // it never overwrites: a move whose id already exists is skipped, clip and all.
 //
 // Phone clips are 4K HEVC .mov, which Chrome and Firefox often won't play, so
-// each one is re-encoded to a 1080p H.264 MP4 under uploads/. That also drops
-// the phone's metadata, GPS location included.
+// each one is re-encoded to a 1080p H.264 MP4 and stored like any upload (Blob,
+// or uploads/ without a token). That also drops the phone's metadata, GPS
+// location included.
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/libsql";
 import { createDbClient } from "../app/db/client.ts";
 import { moveMedia, moves } from "../app/db/schema.ts";
 import { isCategory, slugify, type Category, type Step } from "../app/lib/moves.ts";
-import { UPLOAD_DIR } from "../app/lib/uploads.server.ts";
+import { storeFile } from "../app/lib/uploads.server.ts";
 
 type ImportMove = {
   id?: string;
@@ -46,10 +48,11 @@ for (const m of list) {
 }
 
 const db = drizzle(createDbClient());
-mkdirSync(UPLOAD_DIR, { recursive: true });
 
-function encode(source: string) {
+async function encode(source: string) {
   const name = `${crypto.randomUUID()}.mp4`;
+  const dir = mkdtempSync(path.join(tmpdir(), "shrimp-"));
+  const out = path.join(dir, name);
   // ffmpeg applies the phone's rotation flag, so this fits either orientation
   // inside 1920×1920 without stretching it
   execFileSync(
@@ -64,11 +67,15 @@ function encode(source: string) {
       "-map_metadata", "-1",
       // Index up front, so playback starts before the whole file loads
       "-movflags", "+faststart",
-      path.join(UPLOAD_DIR, name),
+      out,
     ],
     { stdio: "inherit" },
   );
-  return name;
+  try {
+    return await storeFile(name, readFileSync(out), "video/mp4");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 for (const m of list) {
@@ -83,7 +90,7 @@ for (const m of list) {
   let clip: string | null = null;
   if (m.video) {
     process.stdout.write(`${id}: encoding ${path.basename(m.video)}… `);
-    clip = encode(m.video);
+    clip = await encode(m.video);
   }
   await db.insert(moves).values({
     id,

@@ -10,7 +10,13 @@ import {
 import type { Route } from "./+types/root";
 import "./app.css";
 
+// Icons come from art/icon.png via `npm run icon`. iOS ignores the manifest's
+// icons and uses apple-touch-icon for the home screen.
 export const links: Route.LinksFunction = () => [
+  { rel: "icon", href: "/favicon.ico", sizes: "32x32" },
+  { rel: "icon", type: "image/png", href: "/favicon-32.png", sizes: "32x32" },
+  { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
+  { rel: "manifest", href: "/manifest.webmanifest" },
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
   {
     rel: "preconnect",
@@ -34,6 +40,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        {/* Here rather than in meta(), which a route's own meta() replaces */}
+        <meta name="theme-color" content="#f3f3f1" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-title" content="Shrimp School" />
         <Meta />
         <Links />
       </head>

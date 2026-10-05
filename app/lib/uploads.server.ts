@@ -1,9 +1,29 @@
 import { mkdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { del, put } from "@vercel/blob";
 
-// Uploads can't go in public/: a production build only serves build/client, so
-// files added at runtime would 404. They live here and routes/media.ts serves them.
+// Photos, clips and cover art live in Vercel Blob when BLOB_READ_WRITE_TOKEN is
+// set, which it must be anywhere the shared Turso DB is used, or a file saved
+// on one machine is missing everywhere else. The DB then holds each file's full
+// Blob URL. Without the token they fall back to UPLOAD_DIR and the DB holds a
+// bare name that routes/media.ts serves. (Not public/: a production build only
+// serves build/client, so files added at runtime would 404.)
 export const UPLOAD_DIR = path.resolve(process.env.UPLOAD_DIR ?? "./uploads");
+
+const useBlob = () => Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+const isUrl = (ref: string) => /^https?:\/\//.test(ref);
+
+// Store bytes under a name and return the reference to keep in the DB
+export async function storeFile(name: string, body: Buffer, contentType: string) {
+  if (useBlob()) {
+    // The random suffix keeps the public URL unguessable
+    const blob = await put(name, body, { access: "public", contentType, addRandomSuffix: true });
+    return blob.url;
+  }
+  await mkdir(UPLOAD_DIR, { recursive: true });
+  await writeFile(path.join(UPLOAD_DIR, name), body);
+  return name;
+}
 
 const TYPES: Record<string, { kind: "image" | "video"; mime: string }> = {
   ".jpg": { kind: "image", mime: "image/jpeg" },
@@ -24,16 +44,14 @@ export function mediaType(file: string) {
   return TYPES[path.extname(file).toLowerCase()] ?? null;
 }
 
-// The whole file arrives buffered by request.formData(). Fine for a local app;
-// very large clips would want a streaming parser.
+// The whole file arrives buffered by request.formData(). Fine locally, but on
+// Vercel a request body over 4.5 MB is refused before it gets here.
 export async function saveUpload(file: File) {
   const ext = path.extname(file.name).toLowerCase();
   const type = TYPES[ext];
   if (!type) throw new Error(`${file.name} isn't a photo or video this app can show.`);
-  await mkdir(UPLOAD_DIR, { recursive: true });
   const name = `${crypto.randomUUID()}${ext}`;
-  await writeFile(path.join(UPLOAD_DIR, name), Buffer.from(await file.arrayBuffer()));
-  return { file: name, kind: type.kind };
+  return { file: await storeFile(name, Buffer.from(await file.arrayBuffer()), type.mime), kind: type.kind };
 }
 
 // Resolve a stored name to a path inside UPLOAD_DIR, or null if it tries to leave it
@@ -53,7 +71,11 @@ export async function readUpload(name: string) {
   }
 }
 
-export async function deleteUpload(name: string) {
-  const full = uploadPath(name);
+export async function deleteUpload(ref: string) {
+  if (isUrl(ref)) {
+    if (useBlob()) await del(ref);
+    return;
+  }
+  const full = uploadPath(ref);
   if (full) await rm(full, { force: true });
 }

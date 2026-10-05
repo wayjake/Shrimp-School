@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Form, Link, useNavigation, useRevalidator } from "react-router";
 import { MoveArt } from "~/components/move-art";
 import { mediaUrl } from "~/components/move-card";
@@ -216,10 +216,27 @@ function ArtControls({
 }
 
 function MediaView({ item }: { item: Media }) {
-  if (item.kind === "video") {
-    return <video src={mediaUrl(item.file)} controls playsInline preload="metadata" className="absolute inset-0 size-full" />;
-  }
+  if (item.kind === "video") return <AutoplayVideo src={mediaUrl(item.file)} />;
   return <img src={mediaUrl(item.file)} alt={item.caption ?? ""} className="absolute inset-0 size-full object-contain" />;
+}
+
+// Plays as soon as the clip mounts. Browsers refuse sound without a recent
+// click (a direct page load, or Safari in general), so then it plays muted
+// and the controls can turn the sound on.
+function AutoplayVideo({ src }: { src: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const video = ref.current;
+    if (!video) return;
+    video.play().catch((error: unknown) => {
+      if (!(error instanceof DOMException) || error.name !== "NotAllowedError") return;
+      video.muted = true;
+      video.play().catch(() => {});
+    });
+  }, []);
+
+  return <video ref={ref} src={src} controls playsInline preload="auto" className="absolute inset-0 size-full" />;
 }
 
 function Record({ moveId, entries }: { moveId: string; entries: Route.ComponentProps["loaderData"]["entries"] }) {

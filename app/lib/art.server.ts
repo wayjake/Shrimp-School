@@ -7,10 +7,10 @@
 // Palette Discipline (a fixed palette, named by hex), Multi-Image Consistency
 // (same world and figures, only the composition varies) and the anti-slop list
 // (no gradients, glow or neon). The scene block is the move itself.
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { CATEGORY_SINGULAR, CATEGORY_TONE, type Category, type Step } from "./moves.ts";
-import { UPLOAD_DIR } from "./uploads.server.ts";
+import { storeFile } from "./uploads.server.ts";
 
 // Vite doesn't put .env into process.env for server code, so read it here
 try {
@@ -236,7 +236,7 @@ const MODEL = process.env.ART_MODEL ?? "openai/gpt-5-image-mini";
 
 const EXT: Record<string, string> = { "image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp" };
 
-// Draws the move and saves it under uploads/. Returns the file name.
+// Draws the move and stores it (lib/uploads.server.ts). Returns the reference for moves.art.
 export async function drawArt(move: ArtSubject) {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) throw new Error("Add OPENROUTER_API_KEY to .env to draw cover art.");
@@ -270,8 +270,5 @@ export async function drawArt(move: ArtSubject) {
   const match = /^data:(image\/[\w+.-]+);base64,(.+)$/s.exec(url);
   if (!res.ok || !match) throw new Error(body?.error?.message ?? `The image model returned no picture (${res.status}).`);
 
-  await mkdir(UPLOAD_DIR, { recursive: true });
-  const file = `art-${move.id}-${Date.now()}${EXT[match[1]] ?? ".png"}`;
-  await writeFile(path.join(UPLOAD_DIR, file), Buffer.from(match[2], "base64"));
-  return file;
+  return storeFile(`art-${move.id}-${Date.now()}${EXT[match[1]] ?? ".png"}`, Buffer.from(match[2], "base64"), match[1]);
 }
