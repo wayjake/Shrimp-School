@@ -10,7 +10,8 @@
     "db:push": "drizzle-kit push",
     "db:seed": "node scripts/seed.ts",
     "db:studio": "drizzle-kit studio",
-    "art": "node scripts/art.ts"
+    "art": "node scripts/art.ts",
+    "import": "node scripts/import-moves.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",

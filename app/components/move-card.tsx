@@ -6,8 +6,9 @@ export type CoverMedia = { file: string; kind: "image" | "video" } | null;
 
 export const mediaUrl = (file: string) => `/media/${file}`;
 
-// First photo, else the first frame of a clip, else the drawn cover art, else
-// the SVG shapes while there's no art yet
+// First photo, else the drawn cover art, else the first frame of a clip, else
+// the SVG shapes while there's no art yet. Art beats a clip because a paused
+// frame of two people on a mat makes a poor card.
 export function MoveCover({
   id,
   category,
@@ -24,6 +25,9 @@ export function MoveCover({
   if (cover?.kind === "image") {
     return <img src={mediaUrl(cover.file)} alt="" className={`object-cover ${className}`} loading="lazy" />;
   }
+  if (art) {
+    return <img src={mediaUrl(art)} alt="" className={`object-cover ${className}`} loading="lazy" />;
+  }
   if (cover?.kind === "video") {
     return (
       <video
@@ -34,9 +38,6 @@ export function MoveCover({
         preload="metadata"
       />
     );
-  }
-  if (art) {
-    return <img src={mediaUrl(art)} alt="" className={`object-cover ${className}`} loading="lazy" />;
   }
   return <MoveArt seed={id} avoid={CATEGORY_TONE[category].frame} className={className} />;
 }

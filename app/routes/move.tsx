@@ -55,7 +55,7 @@ export default function MovePage({ loaderData }: Route.ComponentProps) {
       </header>
 
       <MediaFrame move={move} />
-      {move.media.length === 0 && <ArtControls hasArt={Boolean(move.art)} status={art} />}
+      <ArtControls art={move.media.length > 0 ? move.art : null} hasArt={Boolean(move.art)} status={art} />
 
       {move.videoUrl && (
         <div className="mt-8 flex justify-center">
@@ -167,12 +167,14 @@ function MediaFrame({ move }: { move: Route.ComponentProps["loaderData"]["move"]
   );
 }
 
-// Draw or redraw the cover. Only shown while there are no photos or clips,
-// since those take over the frame anyway.
+// Draw or redraw the cover. When a photo or clip has the frame, the art only
+// shows on the library card, so a small copy sits next to the button.
 function ArtControls({
+  art,
   hasArt,
   status,
 }: {
+  art: string | null;
   hasArt: boolean;
   status: Route.ComponentProps["loaderData"]["art"];
 }) {
@@ -197,6 +199,9 @@ function ArtControls({
 
   return (
     <Form method="post" className="mt-5 flex flex-col items-center gap-2">
+      {art && (
+        <img src={mediaUrl(art)} alt="Library card cover" title="Library card cover" className="size-20 object-cover" />
+      )}
       <button
         name="intent"
         value="draw-art"
