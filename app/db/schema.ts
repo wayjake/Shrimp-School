@@ -23,6 +23,9 @@ export const moves = sqliteTable("moves", {
   // Generated cover illustration under uploads/ (lib/art.server.ts). Kept off
   // move_media so it never passes for a photo you took.
   art: text("art"),
+  // Optional pose correction appended to the art prompt, for moves the
+  // generic description draws wrong
+  artNote: text("art_note"),
   createdAt: timestamp("created_at"),
   updatedAt: timestamp("updated_at"),
 });

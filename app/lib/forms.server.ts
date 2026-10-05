@@ -43,6 +43,7 @@ export function parseMove(form: FormData) {
   const category = str(form, "category");
   const description = str(form, "description");
   const videoUrl = str(form, "videoUrl");
+  const artNote = str(form, "artNote");
 
   // Steps arrive as parallel stepTitle/stepDetail lists; drop fully blank rows
   const titles = form.getAll("stepTitle").map((v) => String(v).trim());
@@ -67,6 +68,7 @@ export function parseMove(form: FormData) {
       description,
       steps,
       videoUrl: videoUrl || null,
+      artNote: artNote || null,
     },
   } as const;
 }

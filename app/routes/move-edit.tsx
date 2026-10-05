@@ -4,7 +4,7 @@ import { mediaUrl } from "~/components/move-card";
 import { MoveForm } from "~/components/move-form";
 import { Headline, Heavy, Thin } from "~/components/ui";
 import { db, journalEntries, moveMedia, moves } from "~/db/index.server";
-import { attachMedia, getMove, notFound } from "~/lib/data.server";
+import { attachMedia, getMove, notFound, startMoveArt } from "~/lib/data.server";
 import { parseMove, uploadedFiles } from "~/lib/forms.server";
 import type { Category } from "~/lib/moves";
 import { ACCEPT, deleteUpload } from "~/lib/uploads.server";
@@ -53,12 +53,26 @@ export async function action({ request, params }: Route.ActionArgs) {
 
   const parsed = parseMove(form);
   if (parsed.errors) return data({ errors: parsed.errors }, { status: 400 });
+  const before = await getMove(id);
+  if (!before) notFound("move");
   await db
     .update(moves)
     .set({ ...parsed.values, updatedAt: new Date() })
     .where(eq(moves.id, id));
+  const files = uploadedFiles(form, "media");
+  // Redraw the cover when anything it's drawn from changed, unless a photo or
+  // clip covers the card anyway (same rule as a new move)
+  const v = parsed.values;
+  const artChanged =
+    v.name !== before.name ||
+    v.position !== before.position ||
+    v.category !== before.category ||
+    v.description !== before.description ||
+    v.artNote !== before.artNote ||
+    JSON.stringify(v.steps) !== JSON.stringify(before.steps);
+  if (artChanged && !before.media.length && !files.length) startMoveArt(id);
   try {
-    await attachMedia(id, uploadedFiles(form, "media"));
+    await attachMedia(id, files);
   } catch (e) {
     return data(
       { errors: { media: e instanceof Error ? e.message : "That file didn't upload. Try again." } },

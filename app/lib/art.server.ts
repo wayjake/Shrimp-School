@@ -24,6 +24,8 @@ export type ArtSubject = {
   category: Category;
   description: string;
   steps: Step[];
+  // Optional pose correction from the move form, for when the text above isn't enough
+  artNote?: string | null;
 };
 
 export const artEnabled = () => Boolean(process.env.OPENROUTER_API_KEY);
@@ -49,7 +51,7 @@ const STYLE = `Flat vector editorial illustration, in the style of a modern cut-
 - Bold, even black outlines (${HEX.ink}) on the people; clothing folds drawn as a few short black lines. Flat fills only: no gradients, no airbrushing, no texture, no glow, no neon.
 - Two friendly cartoon jiu-jitsu practitioners with simple rounded faces, calm expressions and bare feet. The one doing the move wears a royal blue gi (${HEX.blue}) with a black belt. Their training partner wears a coral pink gi (#f0566a) with a black belt. Their looks are given below.
 - Background: one flat, evenly lit pale mist color (${HEX.mist}) across the whole top of the image, and a flat gold mat (${HEX.gold}) filling the lower part, seen from a low side angle. Never dark, smoky, glowing or vignetted.
-- Behind the people, one or two large flat geometric shapes with crisp edges: a full disc or a half-moon, in the background colors given below. Scatter three or four small crisp white four-point sparkles and a few small white dots, with no halo around them.
+- Behind the people, large flat geometric shapes with crisp edges, placed and colored exactly as described below. Scatter three or four small crisp white four-point sparkles and a few small white dots, with no halo around them.
 - Use only these colors plus skin tones, black and white. Nothing photographic, no 3D render, no shadows except one soft flat shadow under the bodies.
 - No text, letters, numbers, logos or patches anywhere in the image.`;
 
@@ -65,6 +67,29 @@ function shapeColors(id: string, category: Category) {
   const first = pool[h % pool.length];
   const rest = pool.filter((c) => c !== first);
   return [first, rest[(h >> 3) % rest.length]];
+}
+
+// Where the shapes sit, seeded like the colors. Naming each shape's color and
+// place matters: given only two colors, the model keeps the reference's red
+// half-moon top left and recolors the disc. Its own hash so layout and colors
+// vary independently.
+function shapeLayout(id: string, category: Category) {
+  const h = hash(`${id}:layout`);
+  const [first, second] = shapeColors(id, category);
+  const [a, b] = [first, second].map((c) => `${c} (${HEX[c]})`);
+  // A red half-moon top left is the reference's own layout, so never that
+  const corner = h % 2 || first === "red" ? "top-right" : "top-left";
+  const discSide = (h >> 1) % 2 ? "right" : "left";
+  const halfMoon = `high in the ${corner} corner, flat edge down`;
+  const disc = `large and low on the ${discSide}, partly behind the people and cut off by the edge of the image`;
+  switch ((h >> 2) % 4) {
+    case 0:
+      return `Background shapes: only one, a half-moon in ${a}, ${halfMoon}. No disc.`;
+    case 1:
+      return `Background shapes: only one, a full disc in ${a}, ${disc}. No half-moon.`;
+    default:
+      return `Background shapes: exactly two. The half-moon is ${a}, ${halfMoon}. The disc is ${b}, ${disc}.`;
+  }
 }
 
 function hash(s: string) {
@@ -93,14 +118,86 @@ function looks(id: string) {
   return { doer, partner: others[(h >> 4) % others.length] };
 }
 
-// Who's on top, so the model doesn't fall back on the reference's pose
+// Where each body is, spelled out, so the model doesn't fall back on the
+// reference's pose. "Top" and "bottom" alone weren't enough: blue kept ending
+// up on top in closed guard. Order matters, since "back" and "guard" overlap.
 function startingPose(position: string) {
   const p = position.toLowerCase();
-  if (p.includes("standing")) return "Both people start standing, facing each other.";
-  if (p.includes("back")) return "The person in blue starts behind the person in coral pink, chest to their back.";
-  if (p.includes("bottom")) return "The person in blue starts underneath, with the person in coral pink on top of them.";
-  if (p.includes("top")) return "The person in blue starts on top, with the person in coral pink underneath.";
+  const bottom = p.includes("bottom");
+  const top = p.includes("top");
+  const [under, over] = bottom ? ["blue", "coral pink"] : ["coral pink", "blue"];
+
+  if (p.includes("standing"))
+    return "The position: both people are on their feet on the mat, facing each other.";
+  if (p.includes("back"))
+    return "The position: back control. The person in blue is behind the person in coral pink, chest pressed to their back, both sitting on the mat facing the same way. Blue's legs wrap around pink's waist from behind with the heels hooked inside pink's thighs, and blue's arms wrap around pink's upper body from behind.";
+  if (p.includes("side control") && (bottom || top))
+    return `The position: side control. The person in ${under} lies on their back on the mat. The person in ${over} lies across them from the side, chest to chest at a right angle, knees on the mat by their hip. Neither person is between the other's legs.${
+      bottom ? " Blue is underneath the whole time, never on top." : ""
+    }`;
+  if (p.includes("mount") && (bottom || top))
+    return `The position: mount. The person in ${under} lies flat on their back on the mat. The person in ${over} sits astride their stomach, one knee on the mat on each side of their body.${
+      bottom ? " Blue is underneath, never on top." : ""
+    }`;
+  if (p.includes("half guard") && (bottom || top))
+    return `The position: half guard. The person in ${under} is on their back or side on the mat, legs tangled around one of the other person's legs. The person in ${over} is on top, on their knees, chest leaning over them.`;
+  if (p.includes("guard") && (bottom || top))
+    return `The position: closed guard. The person in ${under} is on their back on the mat with both legs wrapped around the waist of the person in ${over}, ankles crossed behind their back. The person in ${over} kneels upright between those legs.${
+      bottom
+        ? " Blue is underneath the whole time and never on top; blue may sit up from the mat to reach over pink, but blue's back and hips stay on the mat."
+        : ""
+    }`;
+  if (bottom) return "The person in blue is underneath, with the person in coral pink on top of them.";
+  if (top) return "The person in blue is on top, with the person in coral pink underneath.";
   return "";
+}
+
+// Which instant to draw depends on the kind of move: a takedown reads while
+// it's still standing and an escape during the hip movement, not after either
+// is done. Each category finds the step to show by its title (patterns in order
+// of preference, so "Shrimp away" beats an earlier "Bridge"), then its detail,
+// falling back to the last step (submission, control) or the middle one.
+const MOMENT: Record<Category, { find?: RegExp[]; skip?: RegExp; fallback: "last" | "middle"; say: string }> = {
+  submission: {
+    fallback: "last",
+    say: "Draw the finish, with the submission locked on.",
+  },
+  control: {
+    fallback: "last",
+    say: "Draw the position fully held.",
+  },
+  takedown: {
+    find: [/behind the knee|lift/i, /shoot|shot|penetrat|drive/i],
+    skip: /finish|land|on top|settle/i,
+    fallback: "middle",
+    say: "Draw it mid-shot, while both people are still on their feet: the person in blue has dropped their level, head tight against the side of the person in coral pink, arms wrapped behind pink's knees, driving forward or lifting. Pink is still upright, off balance. Nobody is lying on the mat yet.",
+  },
+  escape: {
+    find: [/shrimp|hip escape|hips away/i, /bridge|upa/i],
+    fallback: "middle",
+    say: "Draw it during the key hip movement, while the person in blue is still underneath and the escape isn't finished: blue's hips are visibly moving, and their arms work against the person in coral pink as the step describes.",
+  },
+  sweep: {
+    find: [/sweep|scissor|kick|elevat|tip|off.balance/i],
+    fallback: "middle",
+    say: "Draw it mid-sweep: the person in coral pink is tipping over, off balance, and hasn't landed yet.",
+  },
+  pass: {
+    find: [/slice|cut|through|pass|step over/i],
+    fallback: "middle",
+    say: "Draw it mid-pass: the person in blue is cutting past the legs of the person in coral pink and hasn't settled yet.",
+  },
+};
+
+function keyStep(category: Category, steps: Step[]) {
+  const m = MOMENT[category];
+  const candidates = steps.filter((s) => !m.skip?.test(s.title));
+  for (const field of ["title", "detail"] as const)
+    for (const re of m.find ?? []) {
+      const found = candidates.find((s) => re.test(s[field]));
+      if (found) return found;
+    }
+  return m.fallback === "last" ? steps.at(-1) : steps[Math.floor((steps.length - 1) / 2)];
 }
 
 // The illustration the style was set from. Sent with every request, since a
@@ -108,28 +205,29 @@ function startingPose(position: string) {
 const REFERENCE = path.resolve("art/style-reference.png");
 
 export function artPrompt(move: ArtSubject) {
-  const colors = shapeColors(move.id, move.category)
-    .map((c) => `${c} (${HEX[c]})`)
-    .join(" and ");
   const steps = move.steps.map((s, i) => `${i + 1}. ${s.title}: ${s.detail}`).join("\n");
-  // The finish is what makes a move recognizable; the last step usually names it
-  const moment = move.steps.at(-1)?.title;
+  const step = keyStep(move.category, move.steps);
   const people = looks(move.id);
 
+  // A note is the whole picture: alongside the steps, the position text and the
+  // moment, it was outvoted by them (a kimura drawn from the fall-back step)
   const scene = [
     `The move: "${move.name}", a jiu-jitsu ${CATEGORY_SINGULAR[move.category].toLowerCase()} that starts from ${move.position}.`,
     move.description,
-    steps && `How it's done:\n${steps}`,
-    `Freeze the single moment that makes this move recognizable at a glance${
-      moment ? `, usually "${moment}"` : ""
-    }. The person in blue is doing the move; the person in coral pink is receiving it. ${startingPose(move.position)}`,
+    !move.artNote && steps && `How it's done:\n${steps}`,
+    "The person in blue is doing the move; the person in coral pink is receiving it.",
+    move.artNote
+      ? `Draw exactly this moment: ${move.artNote}`
+      : [startingPose(move.position), MOMENT[move.category].say, step && `This is the step "${step.title}": ${step.detail}`]
+          .filter(Boolean)
+          .join(" "),
     `The person in blue is ${people.doer}. The person in coral pink is ${people.partner}.`,
-    `Background shapes: ${colors}.`,
+    shapeLayout(move.id, move.category),
   ]
     .filter(Boolean)
     .join("\n\n");
 
-  return `The attached image is the style reference. Copy only its drawing style: line weight, flat colors, how faces and gi folds are drawn, and the background motifs. Do not copy its people, their pose or its layout. Draw the move described below as a new scene.\n\n${STYLE}\n\n${scene}\n\n${FRAMING}`;
+  return `The attached image is the style reference. Copy only its drawing style: line weight, flat colors, how faces and gi folds are drawn, and the kind of background motifs (flat discs, half-moons, sparkles). Do not copy its people, their pose, its layout, or the colors and places of its shapes. Draw the move described below as a new scene.\n\n${STYLE}\n\n${scene}\n\n${FRAMING}`;
 }
 
 // Image models reached through OpenRouter's chat endpoint. Override with

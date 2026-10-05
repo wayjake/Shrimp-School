@@ -20,6 +20,8 @@ type SeedMove = {
   category: Category;
   description: string;
   steps: Step[];
+  // Pose correction for the drawn cover (lib/art.server.ts)
+  artNote?: string;
 };
 
 const MOVES: SeedMove[] = [
@@ -53,6 +55,8 @@ const MOVES: SeedMove[] = [
       { title: "Fall back at an angle", detail: "Fall back to the mat while shifting your hips out to the side so you're nearly perpendicular to them. Throw your leg over their back to stop them rolling out." },
       { title: "Turn it slowly", detail: "Keep their elbow tight to your chest and rotate their hand up behind their back, toward their head. Go slow: the tap comes fast." },
     ],
+    artNote:
+      "Blue lies flat on their back on the mat, both legs wrapped around pink's waist with the ankles crossed behind pink. Pink kneels between blue's legs, leaning forward. Blue curls their head and shoulders up off the mat, reaching one arm over pink's shoulder while the other hand holds pink's wrist.",
   },
   {
     id: "triangle-choke",
@@ -99,6 +103,8 @@ const MOVES: SeedMove[] = [
       { title: "Knee in", detail: "Slide your bottom knee into the gap between you, shin across their hip." },
       { title: "Recover guard", detail: "Bring your other leg around, square up and close your guard or set up an open guard." },
     ],
+    artNote:
+      "Blue lies on their side on the mat. Pink kneels next to blue and leans forward over blue's chest, both hands on blue, pinning them. Blue pushes against pink's neck and hip with both forearms, bottom foot pushing off the mat, hips sliding away from pink, so there is a clear gap between blue's hips and pink's knees.",
   },
   {
     id: "upa-escape",
@@ -144,6 +150,8 @@ const MOVES: SeedMove[] = [
       { title: "Drive and turn the corner", detail: "Step up with your back leg and drive through at an angle, turning toward your head's side." },
       { title: "Finish on top", detail: "Land in side control or keep passing their legs before they can recover guard." },
     ],
+    artNote:
+      "Blue is in a deep low crouch, one knee almost touching the mat between pink's feet, back straight. Blue's head is pressed against the side of pink's ribs, cheek to pink's side, and both of blue's arms wrap around the backs of pink's knees. Pink is still standing, bent forward over blue's back, hands on blue's shoulders, feet about to leave the mat.",
   },
   {
     id: "rear-naked-choke",

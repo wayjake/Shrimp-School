@@ -10,6 +10,7 @@ type Values = {
   description: string;
   steps: Step[];
   videoUrl: string | null;
+  artNote: string | null;
 };
 
 let nextKey = 0;
@@ -199,6 +200,21 @@ export function MoveForm({
             />
             <FieldError>{errors.videoUrl}</FieldError>
           </div>
+        </div>
+
+        <div>
+          <label htmlFor="artNote" className="field-label">
+            Cover art note
+          </label>
+          <textarea
+            id="artNote"
+            name="artNote"
+            rows={2}
+            defaultValue={defaults?.artNote ?? ""}
+            placeholder="Optional. Where each body should be if the drawing gets it wrong, e.g. Blue is on their back with legs around pink's waist."
+            className="field leading-relaxed"
+          />
+          <p className="mt-1.5 text-sm text-mute">Only used for the drawn cover. Blue is you, pink is your partner.</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-4">
