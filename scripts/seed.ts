@@ -4,17 +4,13 @@
 //   npm run db:seed                       add the starter moves (never overwrites your edits)
 //   npm run db:seed -- --examples         also add example journal entries
 //   npm run db:seed -- --remove-examples  delete the example journal entries again
-import { mkdirSync } from "node:fs";
-import path from "node:path";
-import { createClient } from "@libsql/client";
 import { like } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/libsql";
+import { createDbClient } from "../app/db/client.ts";
 import { journalEntries, moves } from "../app/db/schema.ts";
 import type { Category, Setting, Step } from "../app/lib/moves.ts";
 
-const dbPath = process.env.DATABASE_PATH ?? "./data/shrimp.db";
-mkdirSync(path.dirname(dbPath), { recursive: true });
-const client = createClient({ url: `file:${dbPath}` });
+const client = createDbClient();
 const db = drizzle(client);
 
 type SeedMove = {

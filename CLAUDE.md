@@ -8,12 +8,12 @@ A local, single-user app for learning jiu-jitsu moves (name, starting position, 
 
 ## Stack
 
-React Router 8 framework mode (SSR), Tailwind v4 (`app/app.css` `@theme`), Drizzle on a local SQLite file via `@libsql/client`. No auth.
+React Router 8 framework mode (SSR), Tailwind v4 (`app/app.css` `@theme`), Drizzle on Turso (remote libSQL) via `@libsql/client`. No auth.
 
 ## Commands
 
 - `npm run typecheck`: the standard check. There are no tests, and `README.md` is the stock template.
-- `npm run db:push`: apply `app/db/schema.ts` to the local DB.
+- `npm run db:push`: apply `app/db/schema.ts` to the Turso DB.
 - `npm run art`: draw cover art for every move that has none. Pass move ids to redraw those, and `--prompt <id>` to print the prompt without drawing.
 - `npm run db:seed`: add the nine starter moves. It never overwrites existing rows. Add `-- --examples` to insert example journal entries (ids `example-*`), and `-- --remove-examples` to delete them again.
 
@@ -22,11 +22,11 @@ React Router 8 framework mode (SSR), Tailwind v4 (`app/app.css` `@theme`), Drizz
 - Routes stay thin. Queries live in `app/lib/data.server.ts`, and form parsing and validation live in `app/lib/forms.server.ts` (`parseMove`, `parseEntry`). Those return `{ errors }` or `{ values }`, and an action returns the errors with a 400 so the form shows them.
 - A route with more than one form tells them apart by a submitted `intent` field, e.g. `delete-media`, `delete-move` and `draw-art`.
 - Deleting a move removes its journal entries, media rows and files in code, because SQLite doesn't enforce `ON DELETE CASCADE` unless foreign keys are switched on for the connection.
-- `scripts/*.ts` run under plain Node with type stripping. They can't import `app/db/index.server.ts` (extensionless imports, `~/` alias), so each opens its own libSQL client against `DATABASE_PATH`, and anything they share with the app must use relative `.ts` imports.
+- `scripts/*.ts` run under plain Node with type stripping. They can't import `app/db/index.server.ts` (extensionless imports, `~/` alias), so each builds its own Drizzle instance from `createDbClient()` in `app/db/client.ts`, which imports nothing local. Anything else they share with the app must use relative `.ts` imports.
 
 ## Where things live
 
-- DB: `data/shrimp.db` (override with `DATABASE_PATH`). `~/Work/.stignore` excludes `shrimp-school/data/*`, so the live file never syncs.
+- DB: Turso, from `TURSO_URL` and `TURSO_KEY` in `.env`. `app/db/client.ts` loads `.env` itself, because Vite doesn't put it into `process.env` for server code. `drizzle.config.ts` uses the `turso` dialect, so `npm run db:push` goes to the remote DB.
 - Uploads: `uploads/` (override with `UPLOAD_DIR`), served by `app/routes/media.ts`, which supports Range requests (Safari needs them for video). They're kept out of `public/` because a production build only serves `build/client`.
 - `app/lib/moves.ts` holds the categories, settings, and hit-rate math. The seed script imports it under plain Node, so it and `app/db/schema.ts` use relative `.ts` imports, not `~/`.
 - Each category has one frame color (`CATEGORY_TONE`). Hit rate is total landed ÷ total attempts, not an average of per-entry percentages.

@@ -4,19 +4,15 @@
 //   npm run art                      draw every move that has no art yet
 //   npm run art -- armbar-from-mount redraw these moves, art or not
 //   npm run art -- --prompt armbar-from-mount  print the prompt, draw nothing
-import { mkdirSync } from "node:fs";
-import path from "node:path";
-import { createClient } from "@libsql/client";
 import { eq, inArray, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/libsql";
+import { createDbClient } from "../app/db/client.ts";
 import { moves } from "../app/db/schema.ts";
 import { artPrompt, drawArt } from "../app/lib/art.server.ts";
 import type { Category } from "../app/lib/moves.ts";
 import { deleteUpload } from "../app/lib/uploads.server.ts";
 
-const dbPath = process.env.DATABASE_PATH ?? "./data/shrimp.db";
-mkdirSync(path.dirname(dbPath), { recursive: true });
-const db = drizzle(createClient({ url: `file:${dbPath}` }));
+const db = drizzle(createDbClient());
 
 const args = process.argv.slice(2);
 const promptOnly = args.includes("--prompt");
