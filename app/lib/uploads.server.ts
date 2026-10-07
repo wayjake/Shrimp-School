@@ -2,15 +2,18 @@ import { mkdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { del, put } from "@vercel/blob";
 
-// Photos, clips and cover art live in Vercel Blob when BLOB_READ_WRITE_TOKEN is
-// set, which it must be anywhere the shared Turso DB is used, or a file saved
-// on one machine is missing everywhere else. The DB then holds each file's full
+// Photos, clips and cover art live in Vercel Blob when BLOB_STORE_ID (or a
+// BLOB_READ_WRITE_TOKEN) is set, which it must be anywhere the shared Turso DB
+// is used, or a file saved on one machine is missing everywhere else. With a
+// store id the SDK authenticates by OIDC: on Vercel the token is in the
+// environment, and locally @vercel/oidc fetches one through your `vercel login`
+// and the project link in .vercel/project.json. The DB then holds each file's full
 // Blob URL. Without the token they fall back to UPLOAD_DIR and the DB holds a
 // bare name that routes/media.ts serves. (Not public/: a production build only
 // serves build/client, so files added at runtime would 404.)
 export const UPLOAD_DIR = path.resolve(process.env.UPLOAD_DIR ?? "./uploads");
 
-const useBlob = () => Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+const useBlob = () => Boolean(process.env.BLOB_STORE_ID || process.env.BLOB_READ_WRITE_TOKEN);
 const isUrl = (ref: string) => /^https?:\/\//.test(ref);
 
 // Store bytes under a name and return the reference to keep in the DB

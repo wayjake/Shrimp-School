@@ -3,7 +3,7 @@ import { data, Form, redirect, useFetcher } from "react-router";
 import { mediaUrl } from "~/components/move-card";
 import { MoveForm } from "~/components/move-form";
 import { Headline, Heavy, Thin } from "~/components/ui";
-import { db, journalEntries, moveMedia, moves } from "~/db/index.server";
+import { db, journalEntries, libraryMoves, moveMedia, moves } from "~/db/index.server";
 import { attachMedia, getMove, notFound, startMoveArt } from "~/lib/data.server";
 import { parseMove, uploadedFiles } from "~/lib/forms.server";
 import type { Category } from "~/lib/moves";
@@ -45,6 +45,7 @@ export async function action({ request, params }: Route.ActionArgs) {
     // foreign_keys is switched on for the connection
     await db.delete(journalEntries).where(eq(journalEntries.moveId, id));
     await db.delete(moveMedia).where(eq(moveMedia.moveId, id));
+    await db.delete(libraryMoves).where(eq(libraryMoves.moveId, id));
     const [move] = await db.select({ art: moves.art }).from(moves).where(eq(moves.id, id));
     await db.delete(moves).where(eq(moves.id, id));
     await Promise.all([...media.map((m) => m.file), move?.art].filter((f) => f != null).map(deleteUpload));
@@ -69,6 +70,7 @@ export async function action({ request, params }: Route.ActionArgs) {
     v.category !== before.category ||
     v.description !== before.description ||
     v.artNote !== before.artNote ||
+    v.artCast !== before.artCast ||
     JSON.stringify(v.steps) !== JSON.stringify(before.steps);
   if (artChanged && !before.media.length && !files.length) startMoveArt(id);
   try {
@@ -118,11 +120,11 @@ export default function EditMove({ loaderData, actionData }: Route.ComponentProp
         method="post"
         className="mt-10 text-center"
         onSubmit={(e) => {
-          if (!confirm(`Delete ${move.name}, its photos and clips, and every journal entry for it?`)) e.preventDefault();
+          if (!confirm(`Delete ${move.name} from the catalog, with its photos and clips and every journal entry for it?`)) e.preventDefault();
         }}
       >
         <button name="intent" value="delete-move" className="font-label cursor-pointer text-sm text-red underline-offset-4 hover:underline">
-          Delete this move
+          Delete from the catalog
         </button>
       </Form>
     </div>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Form, Link, useNavigation } from "react-router";
-import { CATEGORIES, CATEGORY_SINGULAR, CATEGORY_TONE, type Category, type Step } from "~/lib/moves";
+import { ART_CAST, ART_CAST_LABEL, CATEGORIES, CATEGORY_SINGULAR, CATEGORY_TONE, type ArtCast, type Category, type Step } from "~/lib/moves";
 import { ArrowButton, FieldError } from "./ui";
 
 type Values = {
@@ -11,6 +11,7 @@ type Values = {
   steps: Step[];
   videoUrl: string | null;
   artNote: string | null;
+  artCast: ArtCast | null;
 };
 
 let nextKey = 0;
@@ -214,7 +215,22 @@ export function MoveForm({
             placeholder="Optional. Where each body should be if the drawing gets it wrong, e.g. Blue is on their back with legs around pink's waist."
             className="field leading-relaxed"
           />
-          <p className="mt-1.5 text-sm text-mute">Only used for the drawn cover. Blue is you, pink is your partner.</p>
+          <p className="mt-1.5 text-sm text-mute">Only used for the drawn cover. Blue does the move, pink receives it.</p>
+        </div>
+
+        <div>
+          <label htmlFor="artCast" className="field-label">
+            Who&rsquo;s in the cover art
+          </label>
+          <select id="artCast" name="artCast" defaultValue={defaults?.artCast ?? ""} className="field">
+            <option value="">Made-up people</option>
+            {ART_CAST.map((c) => (
+              <option key={c} value={c}>
+                {ART_CAST_LABEL[c]}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1.5 text-sm text-mute">Draws the two of you from the photos in art/people.</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-4">

@@ -9,6 +9,22 @@ export type Setting = (typeof SETTINGS)[number];
 
 export type Step = { title: string; detail: string };
 
+// The two real people from the class clips, photographed in art/people/. A
+// move with an art cast is drawn as them, the one named doing the move (in
+// the blue gi) and the other receiving it. Without one, the art draws made-up
+// people. Their looks and photos live in lib/art.server.ts.
+export const ART_CAST = ["trainer", "student"] as const;
+export type ArtCast = (typeof ART_CAST)[number];
+
+export const ART_CAST_LABEL: Record<ArtCast, string> = {
+  trainer: "Trainer does it, on the student",
+  student: "Student does it, on the trainer",
+};
+
+export function isArtCast(v: unknown): v is ArtCast {
+  return typeof v === "string" && (ART_CAST as readonly string[]).includes(v);
+}
+
 export const CATEGORY_LABEL: Record<Category, string> = {
   submission: "Submissions",
   sweep: "Sweeps",

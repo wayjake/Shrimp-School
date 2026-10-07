@@ -9,3 +9,8 @@
 # Local SQLite (and its -wal/-shm sidecars) and uploaded move media
 /data/
 /uploads/
+.vercel
+
+# Photos of real people for the cover art. The repo is public; npm run blob:upload
+# puts them in Blob, where deploys read them.
+/art/people/

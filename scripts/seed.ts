@@ -1,7 +1,7 @@
 // Seeds the move library. Runs under plain Node (type stripping), so imports
 // are relative with .ts extensions.
 //
-//   npm run db:seed                       add the starter moves (never overwrites your edits)
+//   npm run db:seed                       add the starter moves to the catalog (never overwrites your edits)
 //   npm run db:seed -- --examples         also add example journal entries
 //   npm run db:seed -- --remove-examples  delete the example journal entries again
 import { like } from "drizzle-orm";

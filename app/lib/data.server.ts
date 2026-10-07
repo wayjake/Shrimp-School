@@ -1,13 +1,16 @@
-import { asc, desc, eq } from "drizzle-orm";
-import { db, journalEntries, moveMedia, moves } from "~/db/index.server";
+import { asc, desc, eq, inArray, or } from "drizzle-orm";
+import { db, journalEntries, libraryMoves, moveMedia, moves } from "~/db/index.server";
 import { artEnabled, drawArt } from "./art.server";
 import { hitRate, slugify, type Category } from "./moves";
 import { deleteUpload, saveUpload } from "./uploads.server";
 
-// Every move with what a library card needs: its cover and your hit rate on it
-export async function listMoveCards() {
-  const [allMoves, media, entries] = await Promise.all([
+// Moves with what a card needs: its cover, your hit rate on it, and whether
+// it's in your library. "library" is just the moves you've picked; "catalog"
+// is every move.
+export async function listMoveCards(scope: "library" | "catalog") {
+  const [allMoves, picked, media, entries] = await Promise.all([
     db.select().from(moves).orderBy(asc(moves.name)),
+    db.select({ moveId: libraryMoves.moveId }).from(libraryMoves),
     db.select().from(moveMedia).orderBy(asc(moveMedia.createdAt)),
     db
       .select({
@@ -18,7 +21,9 @@ export async function listMoveCards() {
       .from(journalEntries),
   ]);
 
-  return allMoves.map((m) => {
+  const inLibrary = new Set(picked.map((p) => p.moveId));
+  const shown = scope === "library" ? allMoves.filter((m) => inLibrary.has(m.id)) : allMoves;
+  return shown.map((m) => {
     const own = media.filter((x) => x.moveId === m.id);
     const cover = own.find((x) => x.kind === "image") ?? own[0] ?? null;
     return {
@@ -30,6 +35,7 @@ export async function listMoveCards() {
       cover: cover ? { file: cover.file, kind: cover.kind } : null,
       art: m.art,
       rate: hitRate(entries.filter((e) => e.moveId === m.id)).rate,
+      inLibrary: inLibrary.has(m.id),
     };
   });
 }
@@ -37,12 +43,11 @@ export async function listMoveCards() {
 export async function getMove(id: string) {
   const [move] = await db.select().from(moves).where(eq(moves.id, id));
   if (!move) return null;
-  const media = await db
-    .select()
-    .from(moveMedia)
-    .where(eq(moveMedia.moveId, id))
-    .orderBy(asc(moveMedia.createdAt));
-  return { ...move, media };
+  const [media, picked] = await Promise.all([
+    db.select().from(moveMedia).where(eq(moveMedia.moveId, id)).orderBy(asc(moveMedia.createdAt)),
+    db.select().from(libraryMoves).where(eq(libraryMoves.moveId, id)),
+  ]);
+  return { ...move, media, inLibrary: picked.length > 0 };
 }
 
 export async function entriesForMove(id: string) {
@@ -53,8 +58,35 @@ export async function entriesForMove(id: string) {
     .orderBy(desc(journalEntries.date), desc(journalEntries.createdAt));
 }
 
-export async function moveOptions() {
-  return db.select({ id: moves.id, name: moves.name }).from(moves).orderBy(asc(moves.name));
+// The moves the journal form offers: your library, plus one outside it when
+// you came from its page or an entry already points at it
+export async function moveOptions(also?: string | null) {
+  const picked = db.select({ id: libraryMoves.moveId }).from(libraryMoves);
+  return db
+    .select({ id: moves.id, name: moves.name })
+    .from(moves)
+    .where(also ? or(inArray(moves.id, picked), eq(moves.id, also)) : inArray(moves.id, picked))
+    .orderBy(asc(moves.name));
+}
+
+export async function addToLibrary(moveId: string) {
+  // SQLite doesn't enforce the foreign key here, so check the move is real
+  const [move] = await db.select({ id: moves.id }).from(moves).where(eq(moves.id, moveId));
+  if (move) await db.insert(libraryMoves).values({ moveId }).onConflictDoNothing();
+}
+
+export async function removeFromLibrary(moveId: string) {
+  await db.delete(libraryMoves).where(eq(libraryMoves.moveId, moveId));
+}
+
+// The add/remove buttons on the catalog and move pages submit
+// intent=library-add or library-remove. Returns false for any other intent.
+export async function handleLibraryIntent(form: FormData, moveId: string) {
+  const intent = form.get("intent");
+  if (intent === "library-add") await addToLibrary(moveId);
+  else if (intent === "library-remove") await removeFromLibrary(moveId);
+  else return false;
+  return true;
 }
 
 export function notFound(what: string): never {

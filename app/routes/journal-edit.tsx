@@ -15,7 +15,8 @@ export const meta: Route.MetaFunction = () => [{ title: "Edit entry · Shrimp Sc
 export async function loader({ params }: Route.LoaderArgs) {
   const [entry] = await db.select().from(journalEntries).where(eq(journalEntries.id, params.entryId));
   if (!entry) notFound("journal entry");
-  return { entry, moves: await moveOptions() };
+  // Keep the entry's own move on offer even if it's left your library
+  return { entry, moves: await moveOptions(entry.moveId) };
 }
 
 export async function action({ request, params }: Route.ActionArgs) {

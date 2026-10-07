@@ -16,10 +16,10 @@ export function SiteHeader({ dark }: { dark: boolean }) {
       >
         <div className="flex gap-6 bg-white px-5 py-3 text-[0.95rem] text-ink">
           <NavItem to="/" end>
-            Moves
+            My library
           </NavItem>
+          <NavItem to="/catalog">Catalog</NavItem>
           <NavItem to="/journal">Journal</NavItem>
-          <NavItem to="/moves/new">Add a move</NavItem>
         </div>
       </nav>
 

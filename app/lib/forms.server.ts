@@ -1,4 +1,4 @@
-import { isCategory, isSetting, type Category, type Setting, type Step } from "./moves";
+import { isArtCast, isCategory, isSetting, type Category, type Setting, type Step } from "./moves";
 
 export type Errors = Partial<Record<string, string>>;
 
@@ -44,6 +44,7 @@ export function parseMove(form: FormData) {
   const description = str(form, "description");
   const videoUrl = str(form, "videoUrl");
   const artNote = str(form, "artNote");
+  const artCast = str(form, "artCast");
 
   // Steps arrive as parallel stepTitle/stepDetail lists; drop fully blank rows
   const titles = form.getAll("stepTitle").map((v) => String(v).trim());
@@ -69,6 +70,7 @@ export function parseMove(form: FormData) {
       steps,
       videoUrl: videoUrl || null,
       artNote: artNote || null,
+      artCast: isArtCast(artCast) ? artCast : null,
     },
   } as const;
 }

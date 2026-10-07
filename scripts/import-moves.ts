@@ -5,7 +5,8 @@
 //   npm run import -- moves.json
 //
 // The file is an array of { id?, name, position, category, description, steps,
-// artNote?, video? }, where video is a path to the source clip. Like the seed,
+// artNote?, artCast?, video? }, where video is a path to the source clip and
+// artCast is "trainer" or "student", whoever does the move in it. Like the seed,
 // it never overwrites: a move whose id already exists is skipped, clip and all.
 //
 // Phone clips are 4K HEVC .mov, which Chrome and Firefox often won't play, so
@@ -20,7 +21,7 @@ import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/libsql";
 import { createDbClient } from "../app/db/client.ts";
 import { moveMedia, moves } from "../app/db/schema.ts";
-import { isCategory, slugify, type Category, type Step } from "../app/lib/moves.ts";
+import { isArtCast, isCategory, slugify, type Category, type Step } from "../app/lib/moves.ts";
 import { storeFile } from "../app/lib/uploads.server.ts";
 
 type ImportMove = {
@@ -31,6 +32,7 @@ type ImportMove = {
   description: string;
   steps: Step[];
   artNote?: string;
+  artCast?: string;
   video?: string;
 };
 
@@ -44,6 +46,7 @@ const list = JSON.parse(readFileSync(file, "utf8")) as ImportMove[];
 // Check the whole file before writing anything, so a typo doesn't leave half a batch
 for (const m of list) {
   if (!isCategory(m.category)) throw new Error(`${m.name}: "${m.category}" isn't a category.`);
+  if (m.artCast && !isArtCast(m.artCast)) throw new Error(`${m.name}: artCast must be "trainer" or "student".`);
   if (m.video && !existsSync(m.video)) throw new Error(`${m.name}: no file at ${m.video}.`);
 }
 
@@ -82,7 +85,7 @@ for (const m of list) {
   const id = m.id ?? slugify(m.name);
   const [existing] = await db.select({ id: moves.id }).from(moves).where(eq(moves.id, id));
   if (existing) {
-    console.log(`${id}: already in the library, skipped`);
+    console.log(`${id}: already in the catalog, skipped`);
     continue;
   }
   // Encode before writing anything, so a failed or interrupted encode leaves no
@@ -100,6 +103,7 @@ for (const m of list) {
     description: m.description,
     steps: m.steps,
     artNote: m.artNote ?? null,
+    artCast: isArtCast(m.artCast) ? m.artCast : null,
   });
   if (clip) await db.insert(moveMedia).values({ moveId: id, kind: "video", file: clip });
   console.log(clip ?? `${id}: added`);

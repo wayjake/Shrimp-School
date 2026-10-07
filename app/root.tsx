@@ -9,6 +9,7 @@ import {
 
 import type { Route } from "./+types/root";
 import "./app.css";
+import { LIST_PATHS } from "./lib/last-list";
 
 // Icons come from art/icon.png via `npm run icon`. iOS ignores the manifest's
 // icons and uses apple-touch-icon for the home screen.
@@ -50,7 +51,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         {children}
-        <ScrollRestoration />
+        {/* The list pages restore by URL, not history entry, so the move page's
+            back link lands where you left off. Everything else keeps the default. */}
+        <ScrollRestoration getKey={(location) => (LIST_PATHS.includes(location.pathname) ? location.pathname + location.search : location.key)} />
         <Scripts />
       </body>
     </html>

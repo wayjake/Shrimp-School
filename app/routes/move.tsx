@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Form, Link, useNavigation, useRevalidator } from "react-router";
+import { LibraryToggle } from "~/components/library-toggle";
 import { MoveArt } from "~/components/move-art";
 import { mediaUrl } from "~/components/move-card";
 import { ArrowLink, BoxLink, RatingPips, RATING_WORDS } from "~/components/ui";
-import { artStatus, entriesForMove, getMove, notFound, startMoveArt } from "~/lib/data.server";
+import { useLastList } from "~/lib/last-list";
+import { artStatus, entriesForMove, getMove, handleLibraryIntent, notFound, startMoveArt } from "~/lib/data.server";
 import {
   averageRating,
   CATEGORY_SINGULAR,
@@ -31,6 +33,7 @@ export async function loader({ params }: Route.LoaderArgs) {
 export async function action({ params, request }: Route.ActionArgs) {
   const form = await request.formData();
   if (form.get("intent") === "draw-art") startMoveArt(params.moveId);
+  else await handleLibraryIntent(form, params.moveId);
   return { ok: true };
 }
 
@@ -38,15 +41,33 @@ export default function MovePage({ loaderData }: Route.ComponentProps) {
   const { move, entries, art } = loaderData;
   const category = move.category as Category;
   const tone = CATEGORY_TONE[category];
+  const back = useLastList();
 
   return (
     <article className="mx-auto max-w-6xl">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Link to={`/?type=${category}`} className="font-label flex items-center gap-2 text-sm hover:underline">
-          <span className={`size-2.5 ${tone.frame}`} aria-hidden="true" />
-          {CATEGORY_SINGULAR[category]}
-        </Link>
-        <BoxLink to={`/moves/${move.id}/edit`}>Edit move</BoxLink>
+        {back ? (
+          <Link to={back.to} className="font-label flex items-center gap-2 text-sm hover:underline">
+            <svg viewBox="0 0 20 20" className="size-4" aria-hidden="true">
+              <path d="M17 10H5M10 4.5 4.5 10 10 15.5" fill="none" stroke="currentColor" strokeWidth="2.4" />
+            </svg>
+            Back to {back.label}
+          </Link>
+        ) : (
+          // Straight to the move with no list behind it: its category, wherever it lives for you
+          <Link
+            to={`${move.inLibrary ? "/" : "/catalog"}?type=${category}`}
+            className="font-label flex items-center gap-2 text-sm hover:underline"
+          >
+            <span className={`size-2.5 ${tone.frame}`} aria-hidden="true" />
+            {CATEGORY_SINGULAR[category]}
+            <span className="text-mute">· {move.inLibrary ? "My library" : "Catalog"}</span>
+          </Link>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <LibraryToggle moveId={move.id} name={move.name} inLibrary={move.inLibrary} />
+          <BoxLink to={`/moves/${move.id}/edit`}>Edit move</BoxLink>
+        </div>
       </div>
 
       <header className="mt-6 text-center">

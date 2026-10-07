@@ -3,6 +3,7 @@ import { type RouteConfig, index, layout, route } from "@react-router/dev/routes
 export default [
   layout("routes/layout.tsx", [
     index("routes/library.tsx"),
+    route("catalog", "routes/catalog.tsx"),
     route("moves/new", "routes/move-new.tsx"),
     route("moves/:moveId", "routes/move.tsx"),
     route("moves/:moveId/edit", "routes/move-edit.tsx"),

@@ -2,7 +2,7 @@ import { data, redirect } from "react-router";
 import { MoveForm } from "~/components/move-form";
 import { Headline, Heavy, Thin } from "~/components/ui";
 import { db, moves } from "~/db/index.server";
-import { attachMedia, freeMoveId, startMoveArt } from "~/lib/data.server";
+import { addToLibrary, attachMedia, freeMoveId, startMoveArt } from "~/lib/data.server";
 import { parseMove, uploadedFiles } from "~/lib/forms.server";
 import { ACCEPT } from "~/lib/uploads.server";
 import type { Route } from "./+types/move-new";
@@ -20,6 +20,8 @@ export async function action({ request }: Route.ActionArgs) {
 
   const id = await freeMoveId(parsed.values.name);
   await db.insert(moves).values({ id, ...parsed.values });
+  // You wrote it up because you're working on it
+  await addToLibrary(id);
   const files = uploadedFiles(form, "media");
   // Draws in the background and the move page shows it arriving. Skipped when
   // there's media, which covers the art anyway.

@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import { CATEGORIES, SETTINGS, type Step } from "../lib/moves.ts";
+import { ART_CAST, CATEGORIES, SETTINGS, type Step } from "../lib/moves.ts";
 
 // Stored as unix ms so ordering is a plain integer comparison
 const timestamp = (name: string) =>
@@ -26,6 +26,9 @@ export const moves = sqliteTable("moves", {
   // Optional pose correction appended to the art prompt, for moves the
   // generic description draws wrong
   artNote: text("art_note"),
+  // Draw the cover as the two real people from the class clips, and which of
+  // them does the move (lib/moves.ts ART_CAST). Null draws made-up people.
+  artCast: text("art_cast", { enum: ART_CAST }),
   createdAt: timestamp("created_at"),
   updatedAt: timestamp("updated_at"),
 });
@@ -49,6 +52,17 @@ export const moveMedia = sqliteTable(
   },
   (t) => [index("move_media_move_idx").on(t.moveId)],
 );
+
+// The moves you've picked from the catalog to work on. Every move is in the
+// catalog; this row is what puts one in your library. One row per move while
+// there's a single user; accounts would add a user_id to the key, and things
+// like a weekly focus would hang off this row rather than the shared move.
+export const libraryMoves = sqliteTable("library_moves", {
+  moveId: text("move_id")
+    .primaryKey()
+    .references(() => moves.id, { onDelete: "cascade", onUpdate: "cascade" }),
+  addedAt: timestamp("added_at"),
+});
 
 // One session with one move: how many times you went for it, how many landed,
 // and how it felt.
@@ -77,3 +91,4 @@ export const journalEntries = sqliteTable(
 export type Move = typeof moves.$inferSelect;
 export type MoveMedia = typeof moveMedia.$inferSelect;
 export type JournalEntry = typeof journalEntries.$inferSelect;
+export type LibraryMove = typeof libraryMoves.$inferSelect;

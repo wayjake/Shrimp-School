@@ -9,7 +9,8 @@
 // (no gradients, glow or neon). The scene block is the move itself.
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { CATEGORY_SINGULAR, CATEGORY_TONE, type Category, type Step } from "./moves.ts";
+import { list } from "@vercel/blob";
+import { CATEGORY_SINGULAR, CATEGORY_TONE, type ArtCast, type Category, type Step } from "./moves.ts";
 import { storeFile } from "./uploads.server.ts";
 
 // Vite doesn't put .env into process.env for server code, so read it here
@@ -26,6 +27,8 @@ export type ArtSubject = {
   steps: Step[];
   // Optional pose correction from the move form, for when the text above isn't enough
   artNote?: string | null;
+  // Draw the two real people from art/people/ instead of made-up ones
+  artCast?: ArtCast | null;
 };
 
 export const artEnabled = () => Boolean(process.env.OPENROUTER_API_KEY);
@@ -118,6 +121,43 @@ function looks(id: string) {
   return { doer, partner: others[(h >> 4) % others.length] };
 }
 
+// The trainer and student from the class clips. Stills pulled from the clips
+// are sent along so the cartoon keeps their likeness; the words back them up.
+// Close-ups first, then a fuller shot.
+const PEOPLE: Record<ArtCast, { look: string; photos: string[] }> = {
+  trainer: {
+    look: "a stocky, broad-shouldered middle-aged man with light olive skin, a completely shaved bald head and a full, thick dark-brown beard going grey",
+    photos: ["art/people/bearded-closeup.jpg", "art/people/bearded-face-kneeling.jpg"],
+  },
+  student: {
+    look: "a lean, younger man with fair skin, short light-brown hair cut close at the sides and a clean-shaven face",
+    photos: ["art/people/light-hair-closeup.jpg", "art/people/light-hair-facing-camera.jpg"],
+  },
+};
+
+// The two of them side by side, for relative height and build
+const PAIR_PHOTO = "art/people/both-standing-black-gis.jpg";
+
+function castFor(doer: ArtCast) {
+  const partner: ArtCast = doer === "trainer" ? "student" : "trainer";
+  return { doer: PEOPLE[doer], partner: PEOPLE[partner] };
+}
+
+// Everything attached after the style reference, in order, so the prompt can
+// point at each by number
+function castPhotos(doer: ArtCast) {
+  const c = castFor(doer);
+  return [...c.doer.photos, ...c.partner.photos, PAIR_PHOTO];
+}
+
+function castNote(doer: ArtCast) {
+  const c = castFor(doer);
+  const n = c.doer.photos.length;
+  const range = (from: number, count: number) => (count === 1 ? `Image ${from}` : `Images ${from} to ${from + count - 1}`);
+  // Image 1 is the style reference
+  return `The other attached images are photos of the two real people to draw. ${range(2, n)} show the person who does the move, in the blue gi: ${c.doer.look}. ${range(2 + n, c.partner.photos.length)} show their partner, in the coral pink gi: ${c.partner.look}. Image ${2 + n + c.partner.photos.length} shows the two of them standing together, for their relative height and build. Draw them as cartoons in the reference's style, but keep each person's real likeness: head shape, hairline, facial hair, build and skin tone. Take nothing else from the photos: not their gi colors, patches, logos or lettering, and not the room.`;
+}
+
 // Where each body is, spelled out, so the model doesn't fall back on the
 // reference's pose. "Top" and "bottom" alone weren't enough: blue kept ending
 // up on top in closed guard. Order matters, since "back" and "guard" overlap.
@@ -202,12 +242,33 @@ function keyStep(category: Category, steps: Step[]) {
 
 // The illustration the style was set from. Sent with every request, since a
 // picture pins the look down far better than the words alone.
-const REFERENCE = path.resolve("art/style-reference.png");
+const REFERENCE = "art/style-reference.png";
+
+// Reference images live in art/. The photos of real people in art/people/ are
+// kept out of git, since the repo is public, and a deploy may not bundle files
+// read at runtime anyway. So `npm run blob:upload` copies them to Blob under
+// the same paths (with the random suffix, so the URLs can't be guessed), and
+// this falls back to Blob when the file isn't on disk.
+async function readArtFile(rel: string) {
+  try {
+    return await readFile(path.resolve(rel));
+  } catch {}
+  const { dir, name, ext } = path.parse(rel);
+  const prefix = `${dir}/${name}-`;
+  const { blobs } = await list({ prefix });
+  const hit = blobs.find((b) => b.pathname.endsWith(ext));
+  if (!hit) throw new Error(`${rel} isn't on disk or in Blob. Run npm run blob:upload where it is.`);
+  const res = await fetch(hit.url);
+  if (!res.ok) throw new Error(`Couldn't fetch ${rel} from Blob (${res.status}).`);
+  return Buffer.from(await res.arrayBuffer());
+}
 
 export function artPrompt(move: ArtSubject) {
   const steps = move.steps.map((s, i) => `${i + 1}. ${s.title}: ${s.detail}`).join("\n");
   const step = keyStep(move.category, move.steps);
-  const people = looks(move.id);
+  const people = move.artCast
+    ? { doer: castFor(move.artCast).doer.look, partner: castFor(move.artCast).partner.look }
+    : looks(move.id);
 
   // A note is the whole picture: alongside the steps, the position text and the
   // moment, it was outvoted by them (a kimura drawn from the fall-back step)
@@ -227,12 +288,18 @@ export function artPrompt(move: ArtSubject) {
     .filter(Boolean)
     .join("\n\n");
 
-  return `The attached image is the style reference. Copy only its drawing style: line weight, flat colors, how faces and gi folds are drawn, and the kind of background motifs (flat discs, half-moons, sparkles). Do not copy its people, their pose, its layout, or the colors and places of its shapes. Draw the move described below as a new scene.\n\n${STYLE}\n\n${scene}\n\n${FRAMING}`;
+  const reference = `The first attached image is the style reference. Copy only its drawing style: line weight, flat colors, how faces and gi folds are drawn, and the kind of background motifs (flat discs, half-moons, sparkles). Do not copy its people, their pose, its layout, or the colors and places of its shapes. Draw the move described below as a new scene.`;
+  return [reference, move.artCast && castNote(move.artCast), STYLE, scene, FRAMING].filter(Boolean).join("\n\n");
 }
 
 // Image models reached through OpenRouter's chat endpoint. Override with
 // ART_MODEL, e.g. google/gemini-3.1-flash-image (see openrouter.ai/models).
 const MODEL = process.env.ART_MODEL ?? "openai/gpt-5-image-mini";
+// Moves drawn as the real people go to a model that can take likeness from
+// photos. Given the photos, gpt-5-image-mini ignored the prompt altogether and
+// returned unrelated pictures (a stock portrait, a slogan poster), while
+// Gemini kept both the style and the likeness. ART_CAST_MODEL overrides it.
+const CAST_MODEL = process.env.ART_CAST_MODEL ?? "google/gemini-3.1-flash-image";
 
 const EXT: Record<string, string> = { "image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp" };
 
@@ -241,18 +308,27 @@ export async function drawArt(move: ArtSubject) {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) throw new Error("Add OPENROUTER_API_KEY to .env to draw cover art.");
 
+  const photos = move.artCast ? castPhotos(move.artCast) : [];
+  const images = [
+    { file: REFERENCE, type: "image/png" },
+    ...photos.map((f) => ({ file: f, type: "image/jpeg" })),
+  ];
+  const attached = await Promise.all(
+    images.map(async (img) => ({
+      type: "image_url",
+      image_url: { url: `data:${img.type};base64,${(await readArtFile(img.file)).toString("base64")}` },
+    })),
+  );
+
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", "X-Title": "Shrimp School" },
     body: JSON.stringify({
-      model: MODEL,
+      model: move.artCast ? CAST_MODEL : MODEL,
       messages: [
         {
           role: "user",
-          content: [
-            { type: "text", text: artPrompt(move) },
-            { type: "image_url", image_url: { url: `data:image/png;base64,${(await readFile(REFERENCE)).toString("base64")}` } },
-          ],
+          content: [{ type: "text", text: artPrompt(move) }, ...attached],
         },
       ],
       modalities: ["image", "text"],

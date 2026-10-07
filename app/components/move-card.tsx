@@ -1,4 +1,4 @@
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import { CATEGORY_SINGULAR, CATEGORY_TONE, formatPercent, type Category } from "~/lib/moves";
 import { MoveArt } from "./move-art";
 
@@ -63,9 +63,11 @@ export function MoveCard({
   index: number;
 }) {
   const tone = CATEGORY_TONE[move.category];
+  const { pathname, search } = useLocation();
   return (
     <Link
       to={`/moves/${move.id}`}
+      state={{ list: pathname + search }}
       className={`group relative block ${TILTS[index % TILTS.length]} transition-transform duration-300 ease-out hover:z-10 hover:rotate-0 hover:scale-[1.03] focus-visible:rotate-0 focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-ink`}
     >
       <article className={`${tone.frame} ${tone.text} p-3.5 sm:p-4`}>
